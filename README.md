@@ -1,5 +1,5 @@
 ## Basic Concept
-Inspired by Tatsuyuki Inoue
+-- __Inspired by Tatsuyuki Inoue__ --
 
     ( x - (±α_1 ±α_2 *i) )* ( x - (±α_3 ±α_4 *i) )*
     ( x - (±α_5 ±α_6 *i) )* ( x - (±α_7 ±α_8 *i) )*
@@ -18,13 +18,13 @@ Inspired by Tatsuyuki Inoue
 	|		 平文の方と同じ長さ
     | Z: 順番に 0 ~ 7
 	
-といった感じに平文と鍵を表す複素数の根をもつ式を展開し、その係数のみを取ることで暗号化するブロック暗号。  
+といった感じで平文と鍵を表す複素数を根にもつ式を展開し、その係数のみを取ることで暗号化するブロック暗号。  
 効率的な因数分解アルゴリズムは色々あるが、5次以上の方程式の解の公式は存在しないことを利用する。  
 平文のみの式は4次式になるようにし、鍵を組み合わせることで5次式以上にする。  
-復号化するときは鍵が根になることを利用して4次式に次数下げして、解く。  
+復号化するときは鍵が根になることを利用して4次式に次数下げしてから解く。  
 
 数学的な部分のアルゴリズムとか面倒くさそうだったので[Maxima](http://maxima.sourceforge.net/)を呼び出して解いてもらう。  
-自分のMac環境での`subprocess`の呼び出し方なので、他の環境なら`MAXIMA_EXEC`を変えるべし。  
+自分のMac環境での`subprocess`の呼び出し方なので、他の環境なら`MAXIMA_EXEC`を変えないといけないかも。  
 
 ## Structure of Encrypted file
 
@@ -36,15 +36,16 @@ Inspired by Tatsuyuki Inoue
 ## BUGs and Matters of concern
 1. たまにMaximaがこんなエラー吐いて落ちる。
 
-    factor: ran out of primes.
-    -- an error. To debug this try: debugmode(true);)`
+    >factor: ran out of primes.
+    >-- an error. To debug this try: debugmode(true);)`
 
   [ここ](http://comments.gmane.org/gmane.comp.mathematics.maxima.general/23175)でなんか言ってるけどよくわからん。  
 
-2. **ゴリ押しで因数分解される可能性が十分ある。**
-  一応鍵と平文の区別がつかないようになっているが、(下位8bitが平文と鍵で同じものがある）
-  因数分解できる状況で同じ平文と同じ鍵に対する暗号文を知られると鍵が分かるので、完全に解読される。
-  -> どれぐらい次数を上げればで計算量的安全性を確保できるか？
+2. **ゴリ押しで因数分解される可能性が十分ある。**  
+  一応鍵と平文の区別がつかないようになっているが、(下位8bitが平文と鍵で同じものがある）  
+  因数分解できる状況で同じ平文と同じ鍵に対する暗号文を知られると鍵が分かるので、完全に解読される。  
+  -> どれぐらい次数を上げればで計算量的安全性を確保できるか？  
+  
 3. 暗号化後のデータサイズが大きい
 
 ## Benchmark
@@ -140,7 +141,7 @@ high-powered equation 高次方程式
 5次方程式  
 quintic equation  
 
-↓*次数q(ﾟдﾟ )↓sage↓*
+↓_次数q(ﾟдﾟ )↓sage↓_
 
 4次方程式  
 quartic equation  
@@ -151,7 +152,7 @@ quartic equation
   x^3の項を消して、フェラーリの方法orデカルトの方法orオイラーの方法で3次式と2次式に
   参考:[wikipedia](http://ja.wikipedia.org/wiki/4%E6%AC%A1%E6%96%B9%E7%A8%8B%E5%BC%8F)など
 
-↓*次数q(ﾟдﾟ )↓sage↓*
+↓_次数q(ﾟдﾟ )↓sage↓_
 
 3次方程式  
 cubic equation  
