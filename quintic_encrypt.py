@@ -325,13 +325,13 @@ class HighPowered(object):
         self.debug = False
         
         bm = Benchmarker()
-        for p, k in product(xrange(3, 11), xrange(1, 11)):
+        for p, k in product(xrange(3, 21), xrange(1, 21)):
             self.param_chars = p
             self.num_of_keys = k
             with bm("encrypt/decrypt(p: %d, k: %d)" % (self.param_chars, self.num_of_keys)):
-                encdata = self.encrypt("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."*10, "This is key.")
+                encdata = self.encrypt("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data.", "This is key.")
                 decdata = self.decrypt(encdata, "This is key.")
-            assert decdata == "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."*10
+            assert decdata == "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."
 
         #hp = hpy()
         #print hp.heap()
@@ -343,7 +343,7 @@ class HighPowered(object):
 if __name__ == "__main__":
     import sys
     q = HighPowered(debug=True)
-    #q.benchmark()
-    q.encrypt_with_file(plaindata=sys.argv[1], keydata=sys.argv[2], encfile="encdata.bin")
+    q.benchmark()
+    #q.encrypt_with_file(plaindata=sys.argv[1], keydata=sys.argv[2], encfile="encdata.bin")
     
-    print q.decrypt_with_file(encfile="encdata.bin", keydata=sys.argv[2])
+    #print q.decrypt_with_file(encfile="encdata.bin", keydata=sys.argv[2])
