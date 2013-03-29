@@ -23,8 +23,52 @@
 平文のみの式は4次式になるようにし、鍵を組み合わせることで5次式以上にする。  
 復号化するときは鍵が根になることを利用して4次式に次数下げしてから解く。  
 
-数学的な部分のアルゴリズムとか面倒くさそうだったので[Maxima](http://maxima.sourceforge.net/)を呼び出して解いてもらう。  
+数式処理は面倒くさそうだったので[Maxima](http://maxima.sourceforge.net/)を呼び出して解いてもらう。  
 自分のMac環境での`subprocess`の呼び出し方なので、他の環境なら`MAXIMA_EXEC`を変えないといけないかも。  
+
+## Strong Points
+以下の2つの仕組みによって成り立っている。
+1. 5次以上の方程式の解の公式が存在しない、つまり因数分解に時間がかかることを利用。
+
+2. _強引に因数分解されても、鍵と平文の区別がつかない (下位8bitが平文と鍵で同じものができるため)_  
+   得られた根から、平文の断片８つの考え得る組み合わせを全て試すこともできるが、  
+   鍵の個数が多い(=`num_of_keys`の値が大きい)ほど解読は困難になると言える。  
+   その組み合わせの数は以下のように計算できる。  
+   ```python
+   # num_of_keys をnで表すとすると
+   num_of_combinations = (n / 4 + 2)**((n % 4)*2) * (n / 4 + 1)**(8-(n % 4)*2)
+   ```  
+   ![組み合わせの数](https://github.com/pheehs/QuinticEncrypt/raw/master/growing_comb.png "組み合わせの数")  
+   **要するに少し鍵の個数を増やせばめちゃくちゃ解読しづらくなる。**
+
+## Bugs and Matters of concern
+1. _たまにMaximaがこんなエラー吐いて落ちる。_  
+
+    >factor: ran out of primes.  
+    >-- an error. To debug this try: debugmode(true);)`
+
+  [ここ](http://comments.gmane.org/gmane.comp.mathematics.maxima.general/23175)でなんか言ってるけどよくわからん。  
+  
+  -> そもそもMaxima使わないように数式処理の部分も実装する
+
+2. _強引に因数分解される可能性が十分ある。_  
+   -> どれぐらい次数を上げれば因数分解に非現実的な時間がかかるようになるか要検証(計算量的安全性の確保)
+  
+3. _特殊な状況だと解読可能_  
+   因数分解できた場合でも解読は難しいが、  
+   **同じ平文あるいは同じ鍵に対する暗号文2つ以上を知られる場合**は、  
+   鍵と平文の両方を完全に解読できる。(crack()に実装)  
+   
+   -> 対策思いつかない
+   
+4. _暗号化後のデータサイズが大きい_
+   -> 暗号後、自動的に何らかのアルゴリズムで圧縮する(オプションで追加)
+
+## Benchmark
+`"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."`(=72bytes)を平文として、  
+`param_chars`と`num_of_keys`を変化させて暗号化・復号化にかかる時間を計測、gnuplotでグラフにしてみた。  
+![ベンチマーク結果](https://github.com/pheehs/QuinticEncrypt/raw/master/benchmark_plot.png "ベンチマーク結果")  
+この長さだと`param_chars`を大きくすればする程・`num_of_keys`を小さくすればする程、実行時間は短くなる事がわかる。
 
 ## Structure of Encrypted file
 
@@ -33,30 +77,8 @@
     |data  |     |dim|nd-imglen|nd-rellen| ... |2d-rellen|1d-imglen|1d-rellen||nd-img|nd-rel| ... |2d-img|2d-rel|1d-img|1d-rel||
     |4bytes|  2  | 2 |  4      |    4    |     |     4   |    4    |     4   ||  ?   |   ?  |     |  ?   |  ?   |   ?  |   ?  ||
 
-## BUGs and Matters of concern
-1. たまにMaximaがこんなエラー吐いて落ちる。
-
-    >factor: ran out of primes.
-    >-- an error. To debug this try: debugmode(true);)`
-
-  [ここ](http://comments.gmane.org/gmane.comp.mathematics.maxima.general/23175)でなんか言ってるけどよくわからん。  
-
-2. **ゴリ押しで因数分解される可能性が十分ある。**  
-  一応鍵と平文の区別がつかないようになっているが、(下位8bitが平文と鍵で同じものがある）  
-  因数分解できる状況で同じ平文と同じ鍵に対する暗号文を知られると鍵が分かるので、完全に解読される。  
-  -> どれぐらい次数を上げればで計算量的安全性を確保できるか？  
-  
-3. 暗号化後のデータサイズが大きい
-
-## Benchmark
-`"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."`(=72bytes)を平文として、  
-`param_chars`と`num_of_keys`を変化させて暗号化・復号化にかかる時間を計測、gnuplotでグラフにしてみた。  
-![ベンチマーク結果](https://github.com/pheehs/QuinticEncrypt/raw/master/benchmark_plot.png "ベンチマーク結果")  
-この長さだと`param_chars`を大きくすればする程・`num_of_keys`を小さくすればする程、実行時間は短くなる事がわかる。
-
-
 ## Notes
-* もともと5次方程式を利用するつもりだったが、拡張して次数が自由に変えられるので名前があってない。
+* もともと5次方程式を利用するつもりだったが、拡張して次数が自由に変えられるようになったので**Quintic**Encryptじゃない。
 
 a polynomial expression 多項式  
 high-powered equation 高次方程式  
