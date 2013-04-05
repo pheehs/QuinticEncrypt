@@ -28,7 +28,9 @@
 
 ## Strong Points
 以下の2つの仕組みによって成り立っている。  
+
 1. **５次以上の方程式の解の公式が存在しない、つまり因数分解に時間がかかることを利用。**  
+
 2. **強引に因数分解されても、鍵と平文の区別がつかない** (下位8bitが平文と鍵で同じものができるため)  
    得られた根から、平文の断片８つの考え得る組み合わせを全て試すこともできるが、  
    鍵の個数が多い(=`num_of_keys`の値が大きい)ほど解読は困難になると言える。  
@@ -42,28 +44,36 @@
    ![組み合わせの数](https://github.com/pheehs/QuinticEncrypt/raw/master/growing_comb.png "組み合わせの数")  
    **要するに少し鍵の個数を増やせばめちゃくちゃ解読しづらくなる。**
 
-## Bugs and Matters of concern
-1. _たまにMaximaがこんなエラー吐いて落ちる。_  
-
-    >factor: ran out of primes.  
-    >-- an error. To debug this try: debugmode(true);)`
-
-  [ここ](http://comments.gmane.org/gmane.comp.mathematics.maxima.general/23175)でなんか言ってるけどよくわからん。  
-  
-  -> そもそもMaxima使わないように数式処理の部分も実装する
-
-2. _強引に因数分解される可能性が十分ある。_  
+## Weak Points
+1. _強引に因数分解される可能性が十分ある。_  
    -> どれぐらい次数を上げれば因数分解に非現実的な時間がかかるようになるか要検証  
       (計算量的安全性の確保)
   
-3. _特殊な状況だと解読可能_  
+2. _特殊な状況だと解読可能_  
    因数分解できた場合でも解読は難しいが、  
    **同じ平文あるいは同じ鍵に対する暗号文2つ以上を知られる場合**は、  
    鍵と平文の両方を完全に解読できる。(crack()に実装)  
    
    -> 対策思いつかない
-   
-4. _暗号化後のデータサイズが大きい_  
+
+## Bugs and Points to be improved
+1. _たまにMaximaがこんなエラー吐いて落ちる。_  
+
+    >factor: ran out of primes.  
+    >-- an error. To debug this try: debugmode(true);)`
+
+  [すでにBugとして修正済みだった！！](http://sourceforge.net/p/maxima/bugs/1511/)  
+  古いバージョンのMaximaを使っていたのが原因か・・・と思ったら、最新版でも同じ現象が。
+  ということは、さっきのバグ報告のページでDan Gildeaさんが最後に
+  
+  > Ideally there would be no hard-coded limit.
+  
+  て言ってることとかから考えると、  
+  この修正でprimeの上限は上がったけど、今回引っ掛かってるのはそれでも足りないってことか。
+  
+  -> そもそもMaxima使わないように数式処理の部分も実装する
+
+2. _暗号化後のデータサイズが大きい_  
    -> 暗号後、自動的に何らかのアルゴリズムで圧縮する(オプションで追加)
 
 ## Benchmark

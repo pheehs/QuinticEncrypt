@@ -9,7 +9,7 @@ import re
 
 MAXIMA_EXEC = ["/Applications/Maxima.app/Contents/Resources/maxima/bin/sbcl",
                "--core",
-               "/Applications/Maxima.app/Contents/Resources/maxima/lib/maxima/5.28.0/binary-sbcl/maxima.core",
+               "/Applications/Maxima.app/Contents/Resources/maxima/lib/maxima/5.30.0/binary-sbcl/maxima.core",
                "--noinform", "--end-runtime-options", "--eval", "(cl-user::run)", "--end-toplevel-options",
                "-q", "--disable-readline",] # "--batch-string="
 # mode to crack
@@ -211,6 +211,8 @@ class HighPowered(object):
             output = output.split("(%o4)")[-1].strip()
             if "ERROR!" in output:
                 raise KeyError, "incorrect key or broken encrypted data(%s)" % output
+            elif "ran out of primes." in output:
+                raise SystemError, output
             sol_str_list = output[1:-1].split(",")
             for sol_str in sol_str_list:
                 r = COMPLEX_RE.match(sol_str[4:].strip())
@@ -306,6 +308,8 @@ class HighPowered(object):
                 for coeffs in coefficients:
                     sol_params[-1].append([])
                     output = self.run_maxima(self.SOLVE_HIGH() % tuple(coeffs))
+                    if "ran out of primes." in output:
+                        raise SystemError, output
                     sol_str_list = output.split("(%o3)")[-1].strip()[1:-1].split(",")
                     for sol_str in sol_str_list:
                         r = COMPLEX_RE.match(sol_str[4:].strip())
@@ -380,6 +384,8 @@ class HighPowered(object):
                 for coeffs in coefficients:
                     sol_params[-1].append([])
                     output = self.run_maxima(self.SOLVE_HIGH() % tuple(coeffs))
+                    if "ran out of primes." in output:
+                        raise SystemError, output
                     sol_str_list = output.split("(%o3)")[-1].strip()[1:-1].split(",")
                     for sol_str in sol_str_list:
                         r = COMPLEX_RE.match(sol_str[4:].strip())
@@ -461,19 +467,26 @@ class HighPowered(object):
         return
 
     def crack_test(self):
-        #from itertools import product
-        #from benchmarker import Benchmarker
+        from itertools import product
+        from benchmarker import Benchmarker
         
-        #bm = Benchmarker()
-        #for p,k in product(xrange(3,21), xrange(1, 21)):
-        #self.quiet = True
+        bm = Benchmarker()
+        
+        self.quiet = True
         debug = self.debug
         self.debug = False
+        fail_count = 0
         
-        encdata_list = [self.encrypt_with_file(plaindata="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789No.%d" % i, keydata="SAME KEY")
-                        for i in range(1, 3)]
-        for decdata in self.crack(encdata_list):
-            print decdata
+        for p,k in product(xrange(3,21), xrange(1, 21)):
+            self.param_chars = p
+            self.num_of_keys = k
+            
+            plain_list = [self.junk(100) for i in xrange(1, 3)]
+            enc_list = [self.encrypt_with_file(plaindata=pdata, keydata="SAME KEY") for pdata in plain_list]
+            with bm("crack(p: %d, k: %d)" % (self.param_chars, self.num_of_keys)):
+                if self.crack(enc_list) != plain_list:
+                    fail_count += 1
+        print "[*] failed rate: %f %%" % (fail_count / (21.-3)*(21-1) * 100)
         return
         
 
