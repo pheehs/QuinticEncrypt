@@ -23,8 +23,7 @@
 平文のみの式は4次式になるようにし、鍵を組み合わせることで5次式以上にする。  
 復号化するときは鍵が根になることを利用して4次式に次数下げしてから解く。  
 
-数式処理は面倒くさそうだったので[Maxima](http://maxima.sourceforge.net/)を呼び出して解いてもらう。  
-自分のMac環境での`subprocess`の呼び出し方なので、他の環境なら`MAXIMA_EXEC`を変えないといけないかも。  
+数式処理には[SymPy](http://sympy.org/en/index.html)を使ってるので、動作にはこいつのインストールが必要。  
 
 ## Strong Points
 以下の2つの仕組みによって成り立っている。  
@@ -57,30 +56,15 @@
    -> 対策思いつかない
 
 ## Bugs and Points to be improved
-1. _たまにMaximaがこんなエラー吐いて落ちる。_  
-
-    >factor: ran out of primes.  
-    >-- an error. To debug this try: debugmode(true);)`
-
-  [すでにBugとして修正済みだった！！](http://sourceforge.net/p/maxima/bugs/1511/)  
-  古いバージョンのMaximaを使っていたのが原因か・・・と思ったら、最新版でも同じ現象が。
-  ということは、さっきのバグ報告のページでDan Gildeaさんが最後に
-  
-  > Ideally there would be no hard-coded limit.
-  
-  て言ってることとかから考えると、  
-  この修正でprimeの上限は上がったけど、今回引っ掛かってるのはそれでも足りないってことか。
-  
-  -> そもそもMaxima使わないように数式処理の部分も実装する
-
-2. _暗号化後のデータサイズが大きい_  
-   -> 暗号後、自動的に何らかのアルゴリズムで圧縮する(オプションで追加)
+1. _暗号化後のデータサイズが大きい_  
+   -> 暗号後、自動的に何らかのアルゴリズム(zlibの予定)で圧縮する(オプションで追加)
 
 ## Benchmark
-`"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."`(=72bytes)を平文として、  
-`param_chars`と`num_of_keys`を変化させて暗号化・復号化にかかる時間を計測、gnuplotでグラフにしてみた。  
+`"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."`(=72bytes)を平文として、`param_chars`と`num_of_keys`を変化させて暗号化・復号化にかかる時間を計測(benchmark())、gnuplotでグラフにしてみた。  
 ![ベンチマーク結果](https://github.com/pheehs/QuinticEncrypt/raw/master/benchmark_plot.png "ベンチマーク結果")  
-この長さだと`param_chars`を大きくすればする程・`num_of_keys`を小さくすればする程、実行時間は短くなる事がわかる。
+`num_of_keys`は小さければ小さいほど、実行時間は短くなり、  
+`param_chars`も基本的には大きいほど実行時間が短くなるが、  
+10付近で最短時間となった後は大きくなるに連れて実行時間が長くなる。
 
 ## Structure of Encrypted file
 

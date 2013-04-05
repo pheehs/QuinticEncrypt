@@ -1,27 +1,17 @@
 #!/usr/bin/env python
 #-*- coding:utf-8 -*-
 
-from subprocess import Popen, PIPE
+from sympy import I, expand, factor, solve, div, re, im
+from sympy.abc import x
 from hashlib import sha512
 from random import sample, randint
 from struct import pack, unpack
-import re
 
-MAXIMA_EXEC = ["/Applications/Maxima.app/Contents/Resources/maxima/bin/sbcl",
-               "--core",
-               "/Applications/Maxima.app/Contents/Resources/maxima/lib/maxima/5.30.0/binary-sbcl/maxima.core",
-               "--noinform", "--end-runtime-options", "--eval", "(cl-user::run)", "--end-toplevel-options",
-               "-q", "--disable-readline",] # "--batch-string="
 # mode to crack
 SAME_KEY = 0
 SAME_PLAIN = 1
 
-# regular expressions for Maxima output 
-COMPLEX_RE = re.compile(r"(?P<sign1>[-]?)(?P<imgnum>\d+)[*]%i(?P<sign2>[+\-])(?P<realnum>\d+)")
-COMPLEX_RE2 = re.compile(r"(?P<sign2>[-]?)(?P<realnum>\d+)(?P<sign1>[+\-])(?P<imgnum>\d+)[*]%i")
-
-
-class HighPowered(object):
+class QuinticEncrypt(object):
     def __init__(self, debug=False, param_chars=5, num_of_keys=2):
         self.debug = debug
         self.quiet = False
@@ -30,18 +20,30 @@ class HighPowered(object):
         self.param_chars = param_chars
         self.num_of_keys = num_of_keys # encrypted equation will be (4+self.num_of_keys)-dimensional
 
-    # Maxima batch string
-    def EXPAND_POLY(self):
-        return "display2d:false$linel:1000000$" +\
-            "poly:expand((x-(%+d%+d*%%i))*(x-(%+d%+d*%%i))*(x-(%+d%+d*%%i))*(x-(%+d%+d*%%i))" + "*(x-(%+d%+d*%%i))"*self.num_of_keys + ")$\n" +\
-            "[" + ",".join(["ratsimp(coeff(poly, x, %d))"%i for i in xrange(4+self.num_of_keys-1, -1, -1)]) + "];" # to encrypt
-    def SOLVE_QUARTIC(self):
-        return "display2d:false$linel:1000000$" +\
-            "quartic:divide(x^%d" % (4+self.num_of_keys) + "".join(["+(%+d%+d*%%i)*x^"+"%d"%i for i in xrange(4+self.num_of_keys-1, -1, -1)]) + ", " + "*".join(["(x-(%+d%+d*%%i))" for i in xrange(self.num_of_keys)]) + ")$\n" +\
-            "if quartic[2]#0 then print(\"ERROR!\") else solve(gfactor(quartic[1]));" # to decrypt with key
-    def SOLVE_HIGH(self):
-        return "display2d:false$linel:1000000$" +\
-            "solve(gfactor(x^%d" % (4+self.num_of_keys) + "".join(["+(%+d%+d*%%i)*x^"+"%d"%i for i in xrange(4+self.num_of_keys-1, -1, -1)]) + "));"
+    def expand_poly(self, params):
+        poly = (x-(params[0]+params[1]*I))*(x-(params[2]+params[3]*I))*(x-(params[4]+params[5]*I))*(x-(params[6]+params[7]*I))
+        for i in xrange(8, 8+self.num_of_keys*2, 2):
+            poly *= (x-(params[i]+params[i+1]*I))
+        return [expand(poly).coeff(x, n) for n in xrange(4+self.num_of_keys-1, -1, -1)]
+
+    def solve_quartic(self, params):
+        poly = x**(4+self.num_of_keys)
+        for n in xrange(4+self.num_of_keys):
+            poly += (params[n*2]+params[n*2+1]*I)*x**(4+self.num_of_keys-n-1)
+        key = 1
+        for n in xrange(self.num_of_keys):
+            key *= (x-(params[(4+self.num_of_keys)*2+n*2]+params[(4+self.num_of_keys)*2+n*2+1]*I))
+        quartic, r = div(poly, key)
+        if r != 0:
+            return "ERROR!"
+        else:
+            return solve(factor(quartic, gaussian=True))
+
+    def solve_high(self, params):
+        poly = x**(4+self.num_of_keys)
+        for n in xrange(4+self.num_of_keys):
+            poly += (params[n*2]+params[n*2+1]*I)*x**(4+self.num_of_keys-n-1)
+        return solve(factor(poly, gaussian=True))
 
     def junk(self, length):
         junk = ""
@@ -90,18 +92,10 @@ class HighPowered(object):
         coefficients = []
         for param in sol_params:
             coefficients.append([])
-            output = self.run_maxima(self.EXPAND_POLY() % tuple(param))
-            coeff_str_list = output.split("(%o4)")[-1].strip()[1:-1].split(",")
-            for coeff_str in coeff_str_list:
-                r = COMPLEX_RE.match(coeff_str.strip())
-                if not r:
-                    r = COMPLEX_RE2.match(coeff_str.strip())
-                    if not r:
-                        print "[!]", coeff_str.strip(), r
-                        raise TypeError, "regular expression unmatch"
-                coefficients[-1].append(int(r.group("sign2")+r.group("realnum")))
-                coefficients[-1].append(int(r.group("sign1")+r.group("imgnum")))
-
+            coeff_list = self.expand_poly(param)
+            for coeff in coeff_list:
+                coefficients[-1].append(int(re(coeff)))
+                coefficients[-1].append(int(im(coeff)))
         encdata = pack("<IH", org_length, self.param_chars) # length of original data
         for coeffs in coefficients:
             equ_header = pack("<H", len(coeffs)/2) # dimension of the equation
@@ -207,22 +201,12 @@ class HighPowered(object):
         sol_params = []
         for coeffs,keys in zip(coefficients, sol_keys):
             sol_params.append([])
-            output = self.run_maxima(self.SOLVE_QUARTIC() % tuple(coeffs + keys))
-            output = output.split("(%o4)")[-1].strip()
-            if "ERROR!" in output:
-                raise KeyError, "incorrect key or broken encrypted data(%s)" % output
-            elif "ran out of primes." in output:
-                raise SystemError, output
-            sol_str_list = output[1:-1].split(",")
-            for sol_str in sol_str_list:
-                r = COMPLEX_RE.match(sol_str[4:].strip())
-                if not r:
-                    r = COMPLEX_RE2.match(sol_str[4:].strip())
-                    if not r:
-                        print "[!]", sol_str[4:].strip(), r
-                        raise TypeError, "regular expression unmatch"
-                sol_params[-1].append(int(r.group("realnum"))) # ignore sign
-                sol_params[-1].append(int(r.group("imgnum")))
+            sol_list = self.solve_quartic(coeffs + keys)
+            if sol_list == "ERROR!":
+                raise KeyError, "incorrect key or broken encrypted data"
+            for sol in sol_list:
+                sol_params[-1].append(abs(int(re(sol)))) # ignore sign
+                sol_params[-1].append(abs(int(im(sol))))
         # sort solution parameters
         for i,params in enumerate(sol_params):
             for j,p in enumerate(params):
@@ -307,19 +291,10 @@ class HighPowered(object):
                 sol_params.append([])
                 for coeffs in coefficients:
                     sol_params[-1].append([])
-                    output = self.run_maxima(self.SOLVE_HIGH() % tuple(coeffs))
-                    if "ran out of primes." in output:
-                        raise SystemError, output
-                    sol_str_list = output.split("(%o3)")[-1].strip()[1:-1].split(",")
-                    for sol_str in sol_str_list:
-                        r = COMPLEX_RE.match(sol_str[4:].strip())
-                        if not r:
-                            r = COMPLEX_RE2.match(sol_str[4:].strip())
-                            if not r:
-                                print "[!]", sol_str[4:].strip(), r
-                                raise TypeError, "regular expression unmatch"
+                    sol_list = self.solve_high(coeffs)
+                    for sol in sol_list:
                         sol_params[-1][-1].append(
-                            (int(r.group("realnum")), int(r.group("imgnum")) )
+                            (abs(int(re(sol))), abs(int(im(sol))) ) # ignore sign
                             )
             #print "[*] sol_params:", [[[(hex(p[0]), hex(p[1])) for p in e] for e in d] for d in sol_params]
             key_params = []
@@ -383,19 +358,10 @@ class HighPowered(object):
                 sol_params.append([])
                 for coeffs in coefficients:
                     sol_params[-1].append([])
-                    output = self.run_maxima(self.SOLVE_HIGH() % tuple(coeffs))
-                    if "ran out of primes." in output:
-                        raise SystemError, output
-                    sol_str_list = output.split("(%o3)")[-1].strip()[1:-1].split(",")
-                    for sol_str in sol_str_list:
-                        r = COMPLEX_RE.match(sol_str[4:].strip())
-                        if not r:
-                            r = COMPLEX_RE2.match(sol_str[4:].strip())
-                            if not r:
-                                print "[!]", sol_str[4:].strip(), r
-                                raise TypeError, "regular expression unmatch"
-                        sol_params[-1][-1].append(int(r.group("realnum")))
-                        sol_params[-1][-1].append(int(r.group("imgnum")))
+                    sol_list = self.solve_high(coeffs)
+                    for sol in sol_list:
+                        sol_params[-1][-1].append(abs(int(re(sol)))) # ignore sign
+                        sol_params[-1][-1].append(abs(int(im(sol))))
 
             #print "[*] sol_params:", [[[(hex(p[0]), hex(p[1])) for p in e] for e in d] for d in sol_params]
             pass
@@ -427,20 +393,6 @@ class HighPowered(object):
             #print "[*] bin2int(bin) = ", hex(num)
             pass
         return num
-        
-    def run_maxima(self, batch):
-        # batch : batch string for maxima
-        if self.debug:
-            print "[*] "+"="*19 +"maxima:"+"="*20
-            print batch
-        p = Popen(MAXIMA_EXEC+["--batch-string="+batch], stdout=PIPE)
-        output = p.stdout.read()
-        p.wait()
-        if self.debug:
-            print "[*] "+"="*19+"output:"+"="*20
-            print output
-            print "="*50, "\n"
-        return output
 
     def benchmark(self):
         from itertools import product
@@ -492,10 +444,11 @@ class HighPowered(object):
 
 if __name__ == "__main__":
     import sys
-    q = HighPowered(debug=True)
-    #q.benchmark()
-    #encdata = q.encrypt_with_file(plaindata=sys.argv[1], keydata=sys.argv[2])
-    #q.crack(encdata)
-    
-    #print q.decrypt_with_file(encfile="encdata.bin", keydata=sys.argv[2])
-    q.crack_test()
+    q = QuinticEncrypt(debug=True)
+    if "-b" in sys.argv:
+        q.benchmark()
+    elif "-c" in sys.argv:
+        q.crack_test()
+    else:
+        q.encrypt_with_file(plaindata=sys.argv[1], keydata=sys.argv[2], encfile="encdata.bin")
+        print q.decrypt_with_file(encfile="encdata.bin", keydata=sys.argv[2])
