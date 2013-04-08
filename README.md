@@ -1,24 +1,21 @@
 ## Basic Concept
 -- __Inspired by Tatsuyuki Inoue__ --
 
-    ( x - (±α_1 ±α_2 *i) )* ( x - (±α_3 ±α_4 *i) )*
-    ( x - (±α_5 ±α_6 *i) )* ( x - (±α_7 ±α_8 *i) )*
+    ( x - α_1 )* ( x - α_3 )* ( x - α_5 )* ( x - α_7 )*
 	
-	( x - (±β_1 ±β_2 *i) )* ( x - (±β_3 ±β_4 *i) )* ...
+	( x - β_1 )* ( x - β_3 )* ...
 
-    α_1 〜 α_8： ±AABBCCDDEEZ // 平文
-    | ±: AAの最上位ビットが1なら-、0なら+ // 要らない？
+    α_1 〜 α_4： ±AABBCCDDEEZ // 平文
     | AA - EE: 平文の分割されたデータ(長さ：param_chars)
     | Z: 順番に 0 〜 7 // 復号化時に平文を再構築するため
 		
     β_1 〜 β_(NUM_OF_KEYS*2): ±AABBCCDDEEZ // 鍵
-    | ±: AAの最上位ビットが1なら-、0なら+
     | AA...: 鍵のSHA512の上位(PARAM_CHARS)*(NUM_OF_KEYS*2)バイト  
     |        長さが足りなくなったらhashの更にhashをとってつなげる。
 	|		 平文の方と同じ長さ
     | Z: 順番に 0 ~ 7
 	
-といった感じで平文と鍵を表す複素数を根にもつ式を展開し、その係数のみを取ることで暗号化するブロック暗号。  
+といった感じで平文と鍵を表す整数を根にもつ式を展開し、その係数のみを取ることで暗号化するブロック暗号。  
 効率的な因数分解アルゴリズムは色々あるが、5次以上の方程式の解の公式は存在しないことを利用する。  
 平文のみの式は4次式になるようにし、鍵を組み合わせることで5次式以上にする。  
 復号化するときは鍵が根になることを利用して4次式に次数下げしてから解く。  
@@ -31,16 +28,16 @@
 1. **５次以上の方程式の解の公式が存在しない、つまり因数分解に時間がかかることを利用。**  
 
 2. **強引に因数分解されても、鍵と平文の区別がつかない** (下位8bitが平文と鍵で同じものができるため)  
-   得られた根から、平文の断片８つの考え得る組み合わせを全て試すこともできるが、  
+   得られた根から、平文の断片4つの考え得る組み合わせを全て試すこともできるが、  
    鍵の個数が多い(=`num_of_keys`の値が大きい)ほど解読は困難になると言える。  
    その組み合わせの数は以下のように計算できる。  
    
    ```python
    # num_of_keys をnで表すとすると
-   num_of_combinations = (n / 4 + 2)**((n % 4)*2) * (n / 4 + 1)**(8-(n % 4)*2)
+   num_of_combinations = (n / 4 + 2)**(n % 4) * (n / 4 + 1)**(4-(n % 4))
    ```  
    
-   ![組み合わせの数](https://github.com/pheehs/QuinticEncrypt/raw/master/growing_comb.png "組み合わせの数")  
+   ![組み合わせの数](https://github.com/pheehs/QuinticEncrypt/raw/master/growing_comb2.png "組み合わせの数")  
    **要するに少し鍵の個数を増やせばめちゃくちゃ解読しづらくなる。**
 
 ## Weak Points
@@ -55,27 +52,34 @@
    
    -> 対策思いつかない
 
+同じ鍵で暗号化した暗号文２つからそれぞれの平文を解読するのにかかる時間を計測し、  
+鍵を使って通常通り復号化した時にかかる時間で割ったものをグラフにするとこうなる。  
+![解読時間](https://github.com/pheehs/QuinticEncrypt/raw/master/crack_time_rate_plot.png "解読時間")  
+実質的には因数分解にかかる時間を測っているのとほぼ同じと思われる。
+グラフにある範囲程度だと解読は容易。
+
 ## Bugs and Points to be improved
 1. _暗号化後のデータサイズが大きい_  
    -> 暗号後、自動的に何らかのアルゴリズム(zlibの予定)で圧縮する(オプションで追加)
 
 ## Benchmark
 `"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz This is plain data."`(=72bytes)を平文として、`param_chars`と`num_of_keys`を変化させて暗号化・復号化にかかる時間を計測(benchmark())、gnuplotでグラフにしてみた。  
-![ベンチマーク結果](https://github.com/pheehs/QuinticEncrypt/raw/master/benchmark_plot.png "ベンチマーク結果")  
-`num_of_keys`は小さければ小さいほど、実行時間は短くなり、  
+![ベンチマーク結果](https://github.com/pheehs/QuinticEncrypt/raw/master/benchmark_plot2.png "ベンチマーク結果")  
+`num_of_keys`は小さければ小さいほど、実行時間は若干短くなり、  
 `param_chars`も基本的には大きいほど実行時間が短くなるが、  
-10付近で最短時間となった後は大きくなるに連れて実行時間が長くなる。
+特定の`param_chars`で突然実行時間が長くなる。（原因不明。）
 
 ## Structure of Encrypted file
 
-    |length|param|                                              equation_1                                                    ||    equation_2 ..
-    |of org|chars|                               header                      ||                body                           ||
-    |data  |     |dim|nd-imglen|nd-rellen| ... |2d-rellen|1d-imglen|1d-rellen||nd-img|nd-rel| ... |2d-img|2d-rel|1d-img|1d-rel||
-    |4bytes|  2  | 2 |  4      |    4    |     |     4   |    4    |     4   ||  ?   |   ?  |     |  ?   |  ?   |   ?  |   ?  ||
+    |length|param|                          equation_1                      ||   equation_2 ..
+    |of org|chars|          header              ||          body            ||
+    |data  |     |dim|nd-len| ... |2d-len|1d-len||nd-int| ... |2d-int|1d-int||
+    |4bytes|  2  | 2 |  4   |     |  4   |  4   ||  ?   |     |  ?   |   ?  ||
 
 ## Notes
 * もともと5次方程式を利用するつもりだったが、拡張して次数が自由に変えられるようになったので**Quintic**Encryptじゃない。
-
+* RSA暗号は整数の因数分解(素因数分解)の困難性を利用するのに対し、これは整式の因数分解の困難性を利用。
+* この暗号方式の解と平文の見分けがつかないという整式の性質を、整数の場合も使えないか？
 a polynomial expression 多項式  
 high-powered equation 高次方程式  
 
